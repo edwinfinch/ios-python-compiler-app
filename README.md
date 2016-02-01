@@ -24,7 +24,14 @@ Because you can't magically connect to a server that doesn't exist, you're gonna
 Find this line within `- (void)initNetworkCommunication;` on line ~260 and modify it to include your own server IP and your own port should you change it from 5000 from within `comminication.js` on the server backend.
 
 <h3>Connecting</h3>
-Once connected, you should see a message saying `Connected! Please login.` on your iOS device. If so, good work!
+Once connected, you should see a message saying `Connected. Please sign in!` on your iOS device. If so, good work!
+
+<h2>Bluetooth Light</h2>
+You'll notice a lot of code from within the app about a "light" and "bluetooth connection".
+
+Part of our original idea was to have commmunication between a UART Bluetooth module. Unfortunately we didn't continue on with the idea but still had the code left over to turn on and off the light that was connected to it, so we decided to implement it by turning on the light for 5 seconds when compulation of the Python code was successful or fetching the user's list of scripts was successful.
+
+Feel free to remove all of the bluetooth stuff, or if you can find a module of your own to work with the code, go ahead! Maybe you could integrate the bluetooth module to work with the python code? Maybe you could have a little fun with it?
 
 <h2>Issues</h2>
 Should you have any questions, issues, or comments, please let me know my emailing me: edwin (at) lignite.io.
