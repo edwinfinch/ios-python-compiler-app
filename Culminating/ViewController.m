@@ -66,6 +66,7 @@ typedef enum
     }
 }
 
+//Send a message to the server via the connected socket
 - (void)sendMessageToServer:(NSDictionary*)message {
     NSLog(@"Sending %@", message);
     NSString *response  = [self jsonStringWithNSDictionary:message PrettyPrint:NO];
@@ -73,16 +74,19 @@ typedef enum
     [self.outputStream write:[data bytes] maxLength:[data length]];
 }
 
+//Login to the service
 - (IBAction)joinServer:(id)sender {
     NSMutableDictionary *dictionary = [[NSMutableDictionary alloc]initWithObjects:@[@(0)] forKeys:@[@"requestType"]];
     [dictionary setObject:self.userNameView.text forKey:@"username"];
     [self sendMessageToServer:dictionary];
 }
 
+//Set the text of the data label. This is only needed for connecting to the server. Once logged in, the data label is hidden
 - (void)setText:(NSString*)text {
     self.dataLabel.text = text;
 }
 
+//Should the user be disconnected from the service, try to reconnect continuously
 - (void)reconnectToServer {
     if(self.reconnectLength < 1){
         self.reconnectLength = 1;
@@ -93,7 +97,7 @@ typedef enum
     }
     NSLog(@"Reconnect event fired seconds %d", self.reconnectLength);
     if(self.lastEvent != NSStreamEventOpenCompleted){
-        self.reconnectLength *= 1.5;
+        self.reconnectLength *= 1.5; //1.5 will just keep it at 1 since you're dealing with an int and not a float. Change this to a value of 2 or above and it will expand exponentially over time. 1 second is good for testing, though
         self.reconnectTimer = [NSTimer scheduledTimerWithTimeInterval:self.reconnectLength
                                          target:self
                                        selector:@selector(initNetworkCommunication)
@@ -102,10 +106,11 @@ typedef enum
         [self setText:@"Connecting..."];
     }
     else{
-        self.reconnectLength = -1;
+        self.reconnectLength = -1; //Turn off reconnect timer
     }
 }
 
+//Send a message (of code) to the server
 - (void)sendMessage {
     if(self.pythonscriptview.text.length < 1){
         [self makeKeyboardDisappear:self];
@@ -119,27 +124,30 @@ typedef enum
     [self sendMessageToServer:dict];
 }
 
+//Turn the bluetooth light off
 - (void)lightOff {
     [self lightOn:NO];
 }
 
+//Handle any incoming stream events
 - (void)stream:(NSStream *)theStream handleEvent:(NSStreamEvent)streamEvent {
     switch (streamEvent) {
+            //The connection was opened
         case NSStreamEventOpenCompleted:
             NSLog(@"Stream opened");
             [self setText:@"Connection opened"];
             break;
-//            
+            //There are incoming bytes. This usually means the server is trying to chat with you
         case NSStreamEventHasBytesAvailable:
             if (theStream == self.inputStream) {
                 
                 uint8_t buffer[1024];
                 int len;
                 
-                while ([self.inputStream hasBytesAvailable]) {
+                while ([self.inputStream hasBytesAvailable]) { //If there are bytes, read em'
                     len = (int)[self.inputStream read:buffer maxLength:sizeof(buffer)];
                     if (len > 0) {
-                        
+                        //Process the output as a readable string which the phone can now process
                         NSString *output = [[NSString alloc] initWithBytes:buffer length:len encoding:NSASCIIStringEncoding];
                         
                         if (nil != output) {
@@ -149,6 +157,7 @@ typedef enum
                             NSData *stringData=[output dataUsingEncoding:NSUTF8StringEncoding];
                             NSError *error;
                             NSDictionary *dictionary = [NSJSONSerialization JSONObjectWithData:stringData options:NSJSONReadingMutableContainers error:&error];
+                            //If the result type is a login result, let the user see the python dialogue and setup the interface
                             if([[dictionary objectForKey:@"requestType"] isEqualToNumber:@(0)] && [[dictionary objectForKey:@"status"] isEqualToNumber:@(200)]){
                                 NSLog(@"Success logging in");
                                 [UIView animateWithDuration:0.5f animations:^{
@@ -163,7 +172,9 @@ typedef enum
                                     [self.getProjectsButton setTitle:@"Get Past Projects" forState:UIControlStateNormal];
                                 }];
                             }
+                            //If the requestType is for fetching previous projects
                             else if([[dictionary objectForKey:@"requestType"] isEqualToNumber:@(2)] && [[dictionary objectForKey:@"status"] isEqualToNumber:@(200)]){
+                                //And it's sucessful, turn the light on
                                 [self lightOn:YES];
                                 [NSTimer scheduledTimerWithTimeInterval:5.0f
                                                                  target:self
@@ -179,8 +190,10 @@ typedef enum
                                 [self.pythonResultsView setText:string];
 
                             }
+                            //If the request type was for code compilation and was successful
                             else{
                                 if([[dictionary objectForKey:@"status"] isEqualToNumber:@(200)]){
+                                    //Turn the light on and display the results
                                     [self lightOn:YES];
                                     [NSTimer scheduledTimerWithTimeInterval:5.0f
                                                                      target:self
@@ -197,11 +210,14 @@ typedef enum
                                         [self.pythonResultsView setText:string];
                                     }
                                     else{
+                                        //This only ever happened once to me, but better safe than sorry
                                         [self.pythonResultsView setText:@"[No results]"];
                                     }
                                 }
+                                //If there was an error
                                 else{
                                     if([dictionary objectForKey:@"error"]){
+                                        //Display that error
                                         [self.pythonResultsView setText:[NSString stringWithFormat:@"Error: %@", [dictionary objectForKey:@"error"]]];
                                     }
                                     else{
@@ -218,12 +234,14 @@ typedef enum
             }
             break;
             
+            //An error occurred in the stream
         case NSStreamEventErrorOccurred:
             NSLog(@"Can not connect to the host!");
             [self reconnectToServer];
             [self setText:@"Can't connect to host"];
             break;
             
+            //User was disconnected from the server
         case NSStreamEventEndEncountered:
             NSLog(@"Event ended");
             [self setText:@"Disconnected from server"];
@@ -238,6 +256,7 @@ typedef enum
     }
 }
 
+//Initialize netwrok communication
 - (void)initNetworkCommunication {
     CFReadStreamRef readStream;
     CFWriteStreamRef writeStream;
@@ -267,6 +286,7 @@ typedef enum
     [self textFieldShouldReturn:(UITextField*)self.pythonscriptview];
 }
 
+//Send a message to the server asking for past projects from the user
 - (void)getPastProjects {
     NSMutableDictionary *dict = [[NSMutableDictionary alloc]init];
     [dict setObject:@(2) forKey:@"requestType"];
@@ -274,6 +294,7 @@ typedef enum
     [self sendMessageToServer:dict];
 }
 
+//Load the view
 - (void)viewDidLoad {
     [super viewDidLoad];
     
@@ -375,6 +396,7 @@ typedef enum
     NSLog(@"Got data string %@", string);
 }
 
+//No need for this in "production", it's used for the bluetooth light
 - (void) debug:(NSString *)toDebug{
     return;
     if(self.debugLabel == nil){
@@ -383,6 +405,11 @@ typedef enum
     }
     [self.debugLabel setText:toDebug];
 }
+
+/*
+ From here on out your on your own, read the NSLog's if you want to understand the code more
+ tbh unless you have the right bluetooth module you won't be able to use the code for this anyway
+ */
 
 - (IBAction)connectButtonPressed:(id)sender{
     NSLog(@"Pressed %d", self.state);
